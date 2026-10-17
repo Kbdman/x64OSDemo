@@ -1,0 +1,62 @@
+#!/bin/bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BUILD_DIR="$ROOT_DIR/build"
+ESP_DIR="$BUILD_DIR/esp"
+EFI_DIR="$ESP_DIR/EFI/BOOT"
+
+mkdir -p "$EFI_DIR"
+# compile the main.c
+gcc \
+	-I/usr/include/efi \
+	-I/usr/include/efi/x86_64 \
+	-ffreestanding \
+	-fshort-wchar \
+	-fno-stack-protector \
+	-fpic \
+	-mno-red-zone \
+	-maccumulate-outgoing-args \
+	-c "$ROOT_DIR/src/main.c" \
+	-o "$BUILD_DIR/main.o"
+# link the main.o with uefi libraries
+ld \
+	-nostdlib \
+	-znocombreloc \
+	-T /usr/lib/elf_x86_64_efi.lds \
+	-shared \
+	-Bsymbolic \
+	-L /usr/lib \
+	/usr/lib/crt0-efi-x86_64.o \
+	"$BUILD_DIR/main.o" \
+	-o "$BUILD_DIR/main.so" \
+	-lefi \
+	-lgnuefi
+# convert the linked shared object to a UEFI executable
+objcopy \
+	--subsystem 10 \
+	-O pei-x86-64 \
+	-j .text \
+	-j .rodata \
+	-j .sdata \
+	-j .data \
+	-j .dynamic \
+	-j .dynsym \
+	-j .rel \
+	-j .rela \
+	-j .reloc \
+	"$BUILD_DIR/main.so" \
+	"$EFI_DIR/BOOTX64.EFI"
+
+cat > "$ESP_DIR/startup.nsh" <<'NSH'
+fs0:\EFI\BOOT\BOOTX64.EFI
+NSH
+# create a disk image and copy the UEFI executable and startup script into it
+truncate -s 64M "$BUILD_DIR/esp.img"
+mkfs.vfat -F 32 "$BUILD_DIR/esp.img"
+mmd -i "$BUILD_DIR/esp.img" ::/EFI ::/EFI/BOOT
+mcopy -i "$BUILD_DIR/esp.img" "$EFI_DIR/BOOTX64.EFI" ::/EFI/BOOT/BOOTX64.EFI
+mcopy -i "$BUILD_DIR/esp.img" "$ESP_DIR/startup.nsh" ::/startup.nsh
+
+echo "Built UEFI application: $EFI_DIR/BOOTX64.EFI"
+echo "Disk image: $BUILD_DIR/esp.img"
