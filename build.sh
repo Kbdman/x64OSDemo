@@ -9,6 +9,7 @@ EFI_DIR="$ESP_DIR/EFI/BOOT"
 mkdir -p "$EFI_DIR"
 # compile the main.c
 gcc \
+	-g -O0 \
 	-I/usr/include/efi \
 	-I/usr/include/efi/x86_64 \
 	-ffreestanding \

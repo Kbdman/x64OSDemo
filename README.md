@@ -38,16 +38,15 @@ Boot in QEMU and print one line from the kernel through serial output.
 ## Current UEFI hello world path
 
 - Build: ./build.sh
-- Run (UEFI console in QEMU window): ./run.sh gui
-- Run (GUI + terminal debug logs): ./run.sh serial
+- Run: ./run.sh
 - Output binary: build/esp/EFI/BOOT/BOOTX64.EFI
 - Disk image (built but not required for `run.sh`): build/esp.img
 
 Notes:
 
-- `Print(L"...")` output is shown on the UEFI console (GUI mode).
-- `run.sh serial` keeps GUI enabled and captures debug output from I/O port `0x402` into `build/debugcon.log`, then streams it to terminal.
-- Serial output shown in terminal is filtered to printable ASCII.
+- The launcher uses a single QEMU path and streams output from the OVMF debug console at I/O port `0x402` into `build/debugcon.log`.
+- `Print(L"...")` output is shown in the UEFI console when running in GUI mode, but the repo's default learning workflow uses the debug console for terminal-friendly logs.
+- Terminal output is filtered to printable ASCII characters for easier reading.
 
 ## reference
 
