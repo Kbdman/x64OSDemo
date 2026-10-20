@@ -83,7 +83,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     {
         EFI_MEMORY_DESCRIPTOR *desc = (EFI_MEMORY_DESCRIPTOR *)((UINT8 *)MemoryMap + i * DescriptorSize);
         Print(L"Memory Descriptor %lu: Type=%u, PhysicalStart=%lx,VirtualStart=%lx, NumberOfPages=%lu\n", i, desc->Type, desc->PhysicalStart, desc->VirtualStart, desc->NumberOfPages);
-        Sleep(300); // Sleep for 100 milliseconds between printing each memory descriptor
+        Sleep(50); // Sleep for 100 milliseconds between printing each memory descriptor
     }
     Print(L"MemoryMap allocated at: %p\n", MemoryMap);
     Print(L"MemoryMapSize: %lu\n", MemoryMapSize);
@@ -96,6 +96,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
 
     debugcon_write_string("[DEBUGCON] Done. Exiting application.\n");
     Print(L"Done. Exiting application.\r\n");
+    uefi_call_wrapper(SystemTable->BootServices->FreePages, 2, MemoryMap, pages_needed);
 
     return EFI_SUCCESS;
 }
