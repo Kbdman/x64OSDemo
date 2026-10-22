@@ -18,9 +18,9 @@ gcc \
 	-fpic \
 	-mno-red-zone \
 	-maccumulate-outgoing-args \
-	-c "$ROOT_DIR/src/main.c" \
-	-o "$BUILD_DIR/main.o"
-# link the main.o with uefi libraries
+	-c "$ROOT_DIR/osloader/main.c" \
+	-o "$BUILD_DIR/osloader.o"
+# link the osloader.o with uefi libraries
 ld \
 	-nostdlib \
 	-znocombreloc \
@@ -29,8 +29,8 @@ ld \
 	-Bsymbolic \
 	-L /usr/lib \
 	/usr/lib/crt0-efi-x86_64.o \
-	"$BUILD_DIR/main.o" \
-	-o "$BUILD_DIR/main.so" \
+	"$BUILD_DIR/osloader.o" \
+	-o "$BUILD_DIR/osloader.so" \
 	-lefi \
 	-lgnuefi
 # convert the linked shared object to a UEFI executable
@@ -46,7 +46,7 @@ objcopy \
 	-j .rel \
 	-j .rela \
 	-j .reloc \
-	"$BUILD_DIR/main.so" \
+	"$BUILD_DIR/osloader.so" \
 	"$EFI_DIR/BOOTX64.EFI"
 
 cat > "$ESP_DIR/startup.nsh" <<'NSH'
