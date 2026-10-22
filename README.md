@@ -1,15 +1,21 @@
 # x64 OS development learning repo
 
-This repository will contain the code and notes for learning how to develop an OS for an x64 PC.
-
+This repository is a small UEFI-based x64 OS learning project. The current focus is understanding how an x64 machine boots under UEFI.
 ## Recommended starting stack
 
 - Host OS: Linux
-- Language: C first, then Rust later if desired
+- Language: C + assembly
 - Boot path: UEFI
-- Bootloader: Limine
 - Emulator: QEMU
-- Debugging: GDB + serial output
+- Debugging: GDB + OVMF debug console
+
+## Current project status
+
+This repo currently builds two artifacts:
+
+- A UEFI application at `build/esp/EFI/BOOT/BOOTX64.EFI`
+- A flat kernel stub at `build/esp/kernel.bin`
+
 
 ## First milestones
 
@@ -26,28 +32,31 @@ This repository will contain the code and notes for learning how to develop an O
 
 ## Suggested repo layout
 
-- boot/ - Limine and UEFI boot files
-- kernel/ - kernel source
-- libs/ - small shared runtime code
-- docs/ - notes and learning logs
+- `src/` - kernel and startup assembly
+- `osloader/` - UEFI bootloader/loader code
+- `build/` - generated binaries and disk images
+- `docs/` - notes and learning logs
 
-## Goal for the first version
+## Build and run
 
-Boot in QEMU and print one line from the kernel through serial output.
+```bash
+./build.sh
+./run.sh
+```
 
-## Current UEFI hello world path
+Artifacts:
 
-- Build: ./build.sh
-- Run: ./run.sh
-- Output binary: build/esp/EFI/BOOT/BOOTX64.EFI
-- Disk image (built but not required for `run.sh`): build/esp.img
+- EFI binary: `build/esp/EFI/BOOT/BOOTX64.EFI`
+- flat kernel stub: `build/esp/kernel.bin`
+- disk image: `build/esp.img`
+- debug log: `build/debugcon.log`
 
-Notes:
+## Notes
 
-- The launcher uses a single QEMU path and streams output from the OVMF debug console at I/O port `0x402` into `build/debugcon.log`.
-- `Print(L"...")` output is shown in the UEFI console when running in GUI mode, but the repo's default learning workflow uses the debug console for terminal-friendly logs.
+- The UEFI program uses QEMU's OVMF debug console at I/O port `0x402` and writes to `build/debugcon.log`.
+- `Print(L"...")` output is visible in the UEFI console when running in GUI mode, but the repo's default workflow uses the debug console for terminal-friendly logging.
 - Terminal output is filtered to printable ASCII characters for easier reading.
 
-## reference
+## Reference
 
 https://wiki.osdev.org/GNU-EFI
