@@ -153,32 +153,69 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     Print(L"Free Memory Size: %lu MB\r\n", free_pages * PAGE_SIZE / (1024 * 1024));
     Print(L"Sleeping for 10 seconds...\r\n");
 
-    EFI_LOADED_IMAGE *LoadedImage = NULL;
-    status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol, 3, ImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **)&LoadedImage);
-
-    if (EFI_ERROR(status))
-    {
-        Print(L"HandleProtocol failed: %r\r\n", status);
-        return status;
-    }
-    Print(L"LoadedImage: %p\r\n", LoadedImage);
-    Print(L"LoadedImage->ImageBase: %p\r\n", LoadedImage->ImageBase);
-    Print(L"LoadedImage->ImageSize: %lu\r\n", LoadedImage->ImageSize);
-    EFI_DEVICE_PATH *FilePath = LoadedImage->FilePath;
-    Print(L"LoadedImage->FilePath SubType: %u\r\n", FilePath->SubType);
-    Print(L"LoadedImage->FilePath Type: %u\r\n", FilePath->Type);
     EFI_DEVICE_PATH_TO_TEXT_PROTOCOL *DevicePathToText = NULL;
 
-    Print(L"Wait 10s\r\n");
-    Sleep(10000);
+    Print(L"Wait 1s\r\n");
+    Sleep(1000);
+    {
+
+        CHAR16 *VariableName = NULL;
+        status = uefi_call_wrapper(SystemTable->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, 1, &VariableName);
+        if (EFI_ERROR(status))
+        {
+            Print(L"AllocatePages failed: %r\r\n", status);
+            return status;
+        }
+        VariableName[0] = L'\0';
+        UINTN VariableNameSize = 4096;
+        EFI_GUID VendorGuid = {0};
+        while (1)
+        {
+            VariableNameSize = 4096;
+            status = uefi_call_wrapper(SystemTable->RuntimeServices->GetNextVariableName, 3, &VariableNameSize, VariableName, &VendorGuid);
+            if (EFI_ERROR(status))
+            {
+                if (status != EFI_NOT_FOUND)
+                    Print(L"GetNextVariableName failed: %r\r\n", status);
+                break;
+            }
+            Print(L"VariableName: %s\r\n", VariableName);
+        }
+        status = uefi_call_wrapper(SystemTable->BootServices->FreePages, 2, (EFI_PHYSICAL_ADDRESS)(UINTN)VariableName, 1);
+        if (EFI_ERROR(status))
+        {
+            Print(L"FreePages for VariableName failed: %r\r\n", status);
+            return status;
+        }
+        Sleep(1000);
+
+        status = uefi_call_wrapper(SystemTable->BootServices->FreePages, 2, (EFI_PHYSICAL_ADDRESS)(UINTN)MemoryMap, pages_needed);
+        if (EFI_ERROR(status))
+        {
+            Print(L"FreePages failed: %r\r\n", status);
+            return status;
+        }
+    }
+    Sleep(3000);
+    {
+        EFI_LOADED_IMAGE *LoadedImage = NULL;
+        status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol, 3, ImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **)&LoadedImage);
+
+        if (EFI_ERROR(status))
+        {
+            Print(L"HandleProtocol failed: %r\r\n", status);
+            return status;
+        }
+        Print(L"LoadedImage: %p\r\n", LoadedImage);
+        Print(L"LoadedImage->ImageBase: %p\r\n", LoadedImage->ImageBase);
+        Print(L"LoadedImage->ImageSize: %lu\r\n", LoadedImage->ImageSize);
+        EFI_DEVICE_PATH *FilePath = LoadedImage->FilePath;
+        Print(L"LoadedImage->FilePath SubType: %u\r\n", FilePath->SubType);
+        Print(L"LoadedImage->FilePath Type: %u\r\n", FilePath->Type);
+    }
     debugcon_write_string("[DEBUGCON] Done. Exiting application.\n");
     Print(L"Done. Exiting application.\r\n");
-
-    status = uefi_call_wrapper(SystemTable->BootServices->FreePages, 2, (EFI_PHYSICAL_ADDRESS)(UINTN)MemoryMap, pages_needed);
-    if (EFI_ERROR(status))
-    {
-        Print(L"FreePages failed: %r\r\n", status);
-    }
+    Sleep(10000);
 
     return EFI_SUCCESS;
 }
