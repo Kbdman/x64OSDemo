@@ -210,8 +210,15 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
         Print(L"LoadedImage->ImageBase: %p\r\n", LoadedImage->ImageBase);
         Print(L"LoadedImage->ImageSize: %lu\r\n", LoadedImage->ImageSize);
         EFI_DEVICE_PATH *FilePath = LoadedImage->FilePath;
-        Print(L"LoadedImage->FilePath SubType: %u\r\n", FilePath->SubType);
         Print(L"LoadedImage->FilePath Type: %u\r\n", FilePath->Type);
+        Print(L"LoadedImage->FilePath SubType: %u\r\n", FilePath->SubType);
+        if (FilePath->Type != MEDIA_DEVICE_PATH || FilePath->SubType != MEDIA_FILEPATH_DP)
+        {
+            Print(L"Not a presumed valid FilePath\r\n");
+            return EFI_SUCCESS;
+        }
+        FILEPATH_DEVICE_PATH *FilePathNode = (FILEPATH_DEVICE_PATH *)FilePath;
+        Print(L"LoadedImage->FilePathNode->PathName: %s\r\n", FilePathNode->PathName);
     }
     debugcon_write_string("[DEBUGCON] Done. Exiting application.\n");
     Print(L"Done. Exiting application.\r\n");
