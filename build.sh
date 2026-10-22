@@ -52,12 +52,18 @@ objcopy \
 cat > "$ESP_DIR/startup.nsh" <<'NSH'
 fs0:\EFI\BOOT\BOOTX64.EFI
 NSH
+
+KERNEL_BIN="$ESP_DIR/kernel.bin"
+if [ ! -f "$KERNEL_BIN" ]; then
+	touch "$KERNEL_BIN"
+fi
 # create a disk image and copy the UEFI executable and startup script into it
 truncate -s 64M "$BUILD_DIR/esp.img"
 mkfs.vfat -F 32 "$BUILD_DIR/esp.img"
 mmd -i "$BUILD_DIR/esp.img" ::/EFI ::/EFI/BOOT
 mcopy -i "$BUILD_DIR/esp.img" "$EFI_DIR/BOOTX64.EFI" ::/EFI/BOOT/BOOTX64.EFI
 mcopy -i "$BUILD_DIR/esp.img" "$ESP_DIR/startup.nsh" ::/startup.nsh
+mcopy -i "$BUILD_DIR/esp.img" "$KERNEL_BIN" ::/kernel.bin
 
 echo "Built UEFI application: $EFI_DIR/BOOTX64.EFI"
 echo "Disk image: $BUILD_DIR/esp.img"

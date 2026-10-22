@@ -196,7 +196,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
             return status;
         }
     }
-    Sleep(3000);
+    Sleep(1000);
     {
         EFI_LOADED_IMAGE *LoadedImage = NULL;
         status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol, 3, ImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **)&LoadedImage);
@@ -210,19 +210,76 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
         Print(L"LoadedImage->ImageBase: %p\r\n", LoadedImage->ImageBase);
         Print(L"LoadedImage->ImageSize: %lu\r\n", LoadedImage->ImageSize);
         EFI_DEVICE_PATH *FilePath = LoadedImage->FilePath;
-        Print(L"LoadedImage->FilePath Type: %u\r\n", FilePath->Type);
-        Print(L"LoadedImage->FilePath SubType: %u\r\n", FilePath->SubType);
-        if (FilePath->Type != MEDIA_DEVICE_PATH || FilePath->SubType != MEDIA_FILEPATH_DP)
+        bool found = false;
+        while (FilePath->Type != END_DEVICE_PATH_TYPE || FilePath->SubType != END_ENTIRE_DEVICE_PATH_SUBTYPE)
         {
-            Print(L"Not a presumed valid FilePath\r\n");
+            Print(L"LoadedImage->FilePath Type: %u\r\n", FilePath->Type);
+            Print(L"LoadedImage->FilePath SubType: %u\r\n", FilePath->SubType);
+            if (FilePath->Type == MEDIA_DEVICE_PATH && FilePath->SubType == MEDIA_FILEPATH_DP)
+            {
+
+                FILEPATH_DEVICE_PATH *FilePathNode = (FILEPATH_DEVICE_PATH *)FilePath;
+                Print(L"LoadedImage->FilePathNode->PathName: %s\r\n", FilePathNode->PathName);
+                found = true;
+            }
+            FilePath = NextDevicePathNode(FilePath);
+        }
+        if (!found)
+        {
+            Print(L"Not pressumed valid FilePath\r\n");
             return EFI_SUCCESS;
         }
-        FILEPATH_DEVICE_PATH *FilePathNode = (FILEPATH_DEVICE_PATH *)FilePath;
-        Print(L"LoadedImage->FilePathNode->PathName: %s\r\n", FilePathNode->PathName);
+        Print(L"HandleProtocol for SimpleFileSystem.\r\n");
+        EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *fs_protocol;
+        status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol, 3, LoadedImage->DeviceHandle, &gEfiSimpleFileSystemProtocolGuid, (VOID **)&fs_protocol);
+        if (EFI_ERROR(status))
+        {
+            Print(L"HandleProtocol for SimpleFileSystem failed: %r\r\n", status);
+            return status;
+        }
+
+        Print(L"HandleProtocol for SimpleFileSystem Finish.\r\n");
+        EFI_FILE_PROTOCOL *file_proto;
+        status = uefi_call_wrapper(fs_protocol->OpenVolume, 2, fs_protocol, &file_proto);
+        if (EFI_ERROR(status))
+        {
+            Print(L"OpenVolume failed: %r\r\n", status);
+            return status;
+        }
+        Print(L"Opened volume successfully.\r\n");
+        Print(L"Opening kernel.bin...\r\n");
+        EFI_FILE_PROTOCOL *kernel_file;
+        status = uefi_call_wrapper(file_proto->Open, 5, file_proto, &kernel_file, L"kernel.bin", EFI_FILE_MODE_READ, 0);
+        if (EFI_ERROR(status))
+        {
+            Print(L"Opening kernel.bin failed: %r\r\n", status);
+            return status;
+        }
+        Print(L"Opened kernel.bin successfully.\r\n");
+        EFI_FILE_INFO *file_info;
+        UINTN file_info_size = sizeof(EFI_FILE_INFO) + 1024;
+        file_info = AllocatePool(file_info_size);
+        status = uefi_call_wrapper(kernel_file->GetInfo, 4, kernel_file, &gEfiFileInfoGuid, &file_info_size, file_info);
+        if (EFI_ERROR(status))
+        {
+            Print(L"GetInfo for kernel.bin failed: %r\r\n", status);
+            return status;
+        }
+        Print(L"kernel.bin file size: %lu\r\n", file_info->FileSize);
+        UINT64 kernel_file_size = file_info->FileSize;
+        FreePool(file_info);
+        UINT8 *kernel_buffer = AllocatePool(kernel_file_size);
+        status = uefi_call_wrapper(kernel_file->Read, 3, kernel_file, &kernel_file_size, kernel_buffer);
+        if (EFI_ERROR(status))
+        {
+            Print(L"Reading kernel.bin failed: %r\r\n", status);
+            return status;
+        }
+        Print(L"Read kernel.bin successfully.\r\n");
     }
     debugcon_write_string("[DEBUGCON] Done. Exiting application.\n");
     Print(L"Done. Exiting application.\r\n");
-    Sleep(10000);
+    Sleep(100000);
 
     return EFI_SUCCESS;
 }
