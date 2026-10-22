@@ -275,11 +275,13 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
             Print(L"Reading kernel.bin failed: %r\r\n", status);
             return status;
         }
-        Print(L"Read kernel.bin successfully.\r\n");
+        Print(L"Read kernel.bin successfully.\r\njumping to kernel...\r\n");
+        void (*kernel_entry)(void) = (void (*)(void))kernel_buffer;
+        kernel_entry();
     }
     debugcon_write_string("[DEBUGCON] Done. Exiting application.\n");
     Print(L"Done. Exiting application.\r\n");
-    Sleep(100000);
+    Sleep(10000);
 
     return EFI_SUCCESS;
 }

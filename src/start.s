@@ -1,5 +1,6 @@
-global _start
+.intel_syntax noprefix
+.global _start
+.section .text.start
 _start:
-    mov rax, 60         ; syscall: exit
-    xor rdi, rdi        ; status: 0
-    syscall
+    xor rax,rax
+    jmp _start
