@@ -132,18 +132,20 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     for (UINTN i = 0; i < MemoryMapSize / DescriptorSize; i++)
     {
         EFI_MEMORY_DESCRIPTOR *desc = (EFI_MEMORY_DESCRIPTOR *)((UINT8 *)MemoryMap + i * DescriptorSize);
-        Print(L"Memory Descriptor %lu: Type=%s, PhysicalStart=0x%lx, VirtualStart=0x%lx, NumberOfPages=%lu\r\n",
-              i,
-              MemoryTypeName(desc->Type),
-              desc->PhysicalStart,
-              desc->VirtualStart,
-              desc->NumberOfPages);
+        if (desc->Type == EfiConventionalMemory)
+            Print(L"Memory Descriptor %lu: Type=%s, PhysicalStart=0x%lx, VirtualStart=0x%lx, NumberOfPages=%lu\r\n",
+                  i,
+                  MemoryTypeName(desc->Type),
+                  desc->PhysicalStart,
+                  desc->VirtualStart,
+                  desc->NumberOfPages);
         if (desc->Type == EfiConventionalMemory)
         {
             free_pages += desc->NumberOfPages;
         }
     }
 
+    Sleep(10000);
     Print(L"MemoryMap allocated at: %p\r\n", MemoryMap);
     Print(L"MemoryMapSize: %lu\r\n", MemoryMapSize);
     Print(L"DescriptorNumber: %lu\r\n", MemoryMapSize / DescriptorSize);
@@ -179,7 +181,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
                     Print(L"GetNextVariableName failed: %r\r\n", status);
                 break;
             }
-            Print(L"VariableName: %s\r\n", VariableName);
+            // Print(L"VariableName: %s\r\n", VariableName);
         }
         status = uefi_call_wrapper(SystemTable->BootServices->FreePages, 2, (EFI_PHYSICAL_ADDRESS)(UINTN)VariableName, 1);
         if (EFI_ERROR(status))
@@ -196,7 +198,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
             return status;
         }
     }
-    Sleep(1000);
     {
         EFI_LOADED_IMAGE *LoadedImage = NULL;
         status = uefi_call_wrapper(SystemTable->BootServices->HandleProtocol, 3, ImageHandle, &gEfiLoadedImageProtocolGuid, (VOID **)&LoadedImage);
@@ -208,6 +209,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
         }
         Print(L"LoadedImage: %p\r\n", LoadedImage);
         Print(L"LoadedImage->ImageBase: %p\r\n", LoadedImage->ImageBase);
+
+        Sleep(5000);
         Print(L"LoadedImage->ImageSize: %lu\r\n", LoadedImage->ImageSize);
         EFI_DEVICE_PATH *FilePath = LoadedImage->FilePath;
         bool found = false;
@@ -268,7 +271,13 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
         Print(L"kernel.bin file size: %lu\r\n", file_info->FileSize);
         UINT64 kernel_file_size = file_info->FileSize;
         FreePool(file_info);
-        UINT8 *kernel_buffer = AllocatePool(kernel_file_size);
+        UINT8 *kernel_buffer = (UINT8 *)0x100000;
+        status = uefi_call_wrapper(SystemTable->BootServices->AllocatePages, 4, AllocateAddress, EfiLoaderData, EFI_SIZE_TO_PAGES(kernel_file_size), (EFI_PHYSICAL_ADDRESS *)&kernel_buffer);
+        if (EFI_ERROR(status))
+        {
+            Print(L"AllocatePages for kernel buffer failed: %r\r\n", status);
+            return status;
+        }
         status = uefi_call_wrapper(kernel_file->Read, 3, kernel_file, &kernel_file_size, kernel_buffer);
         if (EFI_ERROR(status))
         {
@@ -281,7 +290,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     }
     debugcon_write_string("[DEBUGCON] Done. Exiting application.\n");
     Print(L"Done. Exiting application.\r\n");
-    Sleep(10000);
 
     return EFI_SUCCESS;
 }
