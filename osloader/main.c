@@ -1,6 +1,8 @@
 #include <efi.h>
 #include <efilib.h>
-
+#define KERNEL_ADDR 0x100000
+#define STACK_ADDR 0x800000
+#define STACK_SIZE 0x200000
 #define PAGE_SIZE 4096
 #define NOSLEEP 1
 static EFI_SYSTEM_TABLE *st = NULL;
@@ -78,7 +80,6 @@ static const CHAR16 *MemoryTypeName(EFI_MEMORY_TYPE type)
         return L"Unknown";
     }
 }
-
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable)
 {
     EFI_STATUS status;
@@ -94,72 +95,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     debugcon_write_string("[DEBUGCON] Hello from OVMF debugcon\n");
     Print(L"Hello from GNU-EFI!\r\nFirmware Vendor: %s\r\n", SystemTable->FirmwareVendor);
 
-    int pages_needed = 1;
-    while (1)
-    {
-        if (MemoryMap != NULL)
-        {
-            status = uefi_call_wrapper(SystemTable->BootServices->FreePages, 2, (EFI_PHYSICAL_ADDRESS)(UINTN)MemoryMap, pages_needed);
-            if (EFI_ERROR(status))
-            {
-                Print(L"Free Old Pages failed: %r\r\n", status);
-                return status;
-            }
-        }
-
-        Print(L"AllocatePages for %d pages (type: %s)\r\n", pages_needed, MemoryTypeName(EfiLoaderData));
-        status = uefi_call_wrapper(SystemTable->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, pages_needed, (EFI_PHYSICAL_ADDRESS *)&MemoryMap);
-        if (EFI_ERROR(status))
-        {
-            Print(L"AllocatePages failed: %r\r\n", status);
-            return status;
-        }
-
-        MemoryMapSize = PAGE_SIZE * pages_needed;
-        status = uefi_call_wrapper(SystemTable->BootServices->GetMemoryMap, 5, &MemoryMapSize, MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
-        if (EFI_ERROR(status))
-        {
-            Print(L"GetMemoryMap failed: %r\r\n", status);
-            Sleep(500);
-            pages_needed++;
-            continue;
-        }
-        else
-        {
-            break;
-        }
-    }
-
-    uint64_t free_pages = 0;
-    for (UINTN i = 0; i < MemoryMapSize / DescriptorSize; i++)
-    {
-        EFI_MEMORY_DESCRIPTOR *desc = (EFI_MEMORY_DESCRIPTOR *)((UINT8 *)MemoryMap + i * DescriptorSize);
-        Print(L"Memory Descriptor %lu: Type=%s, PhysicalStart=0x%lx, VirtualStart=0x%lx, NumberOfPages=%lu\r\n",
-              i,
-              MemoryTypeName(desc->Type),
-              desc->PhysicalStart,
-              desc->VirtualStart,
-              desc->NumberOfPages);
-        if (desc->Type == EfiConventionalMemory)
-        {
-            free_pages += desc->NumberOfPages;
-        }
-    }
-
-    Sleep(10000);
-    Print(L"MemoryMap allocated at: %p\r\n", MemoryMap);
-    Print(L"MemoryMapSize: %lu\r\n", MemoryMapSize);
-    Print(L"DescriptorNumber: %lu\r\n", MemoryMapSize / DescriptorSize);
-    Print(L"DescriptorSize: %lu\r\n", DescriptorSize);
-    Print(L"DescriptorVersion: %u\r\n", DescriptorVersion);
-    Print(L"MapKey: %lu\r\n", MapKey);
-    Print(L"Free Memory Size: %lu MB\r\n", free_pages * PAGE_SIZE / (1024 * 1024));
-    Print(L"Sleeping for 10 seconds...\r\n");
-
     EFI_DEVICE_PATH_TO_TEXT_PROTOCOL *DevicePathToText = NULL;
-
-    Print(L"Wait 1s\r\n");
-    Sleep(1000);
     {
 
         CHAR16 *VariableName = NULL;
@@ -191,13 +127,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
             return status;
         }
         Sleep(1000);
-
-        status = uefi_call_wrapper(SystemTable->BootServices->FreePages, 2, (EFI_PHYSICAL_ADDRESS)(UINTN)MemoryMap, pages_needed);
-        if (EFI_ERROR(status))
-        {
-            Print(L"FreePages failed: %r\r\n", status);
-            return status;
-        }
     }
     {
         EFI_LOADED_IMAGE *LoadedImage = NULL;
@@ -279,13 +208,85 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
             Print(L"AllocatePages for kernel buffer failed: %r\r\n", status);
             return status;
         }
+        Print(L"Kernel buffer allocated at: 0x%lx\r\n", kernel_buffer);
         status = uefi_call_wrapper(kernel_file->Read, 3, kernel_file, &kernel_file_size, kernel_buffer);
         if (EFI_ERROR(status))
         {
             Print(L"Reading kernel.bin failed: %r\r\n", status);
             return status;
         }
-        Print(L"Read kernel.bin successfully.\r\njumping to kernel...\r\n");
+        Print(L"Load kernel.bin successfully.\r\n");
+        UINT8 *stack_buffer = (UINT8 *)STACK_ADDR - STACK_SIZE;
+        status = uefi_call_wrapper(SystemTable->BootServices->AllocatePages, 4, AllocateAddress, EfiLoaderData, EFI_SIZE_TO_PAGES(STACK_SIZE), (EFI_PHYSICAL_ADDRESS *)&stack_buffer);
+        if (EFI_ERROR(status))
+        {
+            Print(L"AllocatePages for stack buffer failed: %r\r\n", status);
+            return status;
+        }
+        Print(L"Stack buffer allocated at: 0x%lx\r\n", stack_buffer);
+        {
+            int pages_needed = 1;
+            while (1)
+            {
+                if (MemoryMap != NULL)
+                {
+                    status = uefi_call_wrapper(SystemTable->BootServices->FreePages, 2, (EFI_PHYSICAL_ADDRESS)(UINTN)MemoryMap, pages_needed);
+                    if (EFI_ERROR(status))
+                    {
+                        Print(L"Free Old Pages failed: %r\r\n", status);
+                        return status;
+                    }
+                }
+
+                Print(L"AllocatePages for %d pages (type: %s)\r\n", pages_needed, MemoryTypeName(EfiLoaderData));
+                status = uefi_call_wrapper(SystemTable->BootServices->AllocatePages, 4, AllocateAnyPages, EfiLoaderData, pages_needed, (EFI_PHYSICAL_ADDRESS *)&MemoryMap);
+                if (EFI_ERROR(status))
+                {
+                    Print(L"AllocatePages failed: %r\r\n", status);
+                    return status;
+                }
+
+                MemoryMapSize = PAGE_SIZE * pages_needed;
+                status = uefi_call_wrapper(SystemTable->BootServices->GetMemoryMap, 5, &MemoryMapSize, MemoryMap, &MapKey, &DescriptorSize, &DescriptorVersion);
+                if (EFI_ERROR(status))
+                {
+                    Print(L"GetMemoryMap failed: %r\r\n", status);
+                    pages_needed++;
+                    continue;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            uint64_t free_pages = 0;
+            for (UINTN i = 0; i < MemoryMapSize / DescriptorSize; i++)
+            {
+                EFI_MEMORY_DESCRIPTOR *desc = (EFI_MEMORY_DESCRIPTOR *)((UINT8 *)MemoryMap + i * DescriptorSize);
+                Print(L"Memory Descriptor %lu: Type=%s, PhysicalStart=0x%lx, VirtualStart=0x%lx, NumberOfPages=%lu\r\n",
+                      i,
+                      MemoryTypeName(desc->Type),
+                      desc->PhysicalStart,
+                      desc->VirtualStart,
+                      desc->NumberOfPages);
+                if (desc->Type == EfiConventionalMemory)
+                {
+                    free_pages += desc->NumberOfPages;
+                }
+            }
+
+            Sleep(10000);
+            Print(L"MemoryMap allocated at: %p\r\n", MemoryMap);
+            Print(L"MemoryMapSize: %lu\r\n", MemoryMapSize);
+            Print(L"DescriptorNumber: %lu\r\n", MemoryMapSize / DescriptorSize);
+            Print(L"DescriptorSize: %lu\r\n", DescriptorSize);
+            Print(L"DescriptorVersion: %u\r\n", DescriptorVersion);
+            Print(L"MapKey: %lu\r\n", MapKey);
+            Print(L"Free Memory Size: %lu MB\r\n", free_pages * PAGE_SIZE / (1024 * 1024));
+        }
+
+        Print(L"Jumping to kernel...\r\n");
         void (*kernel_entry)(void) = (void (*)(void))kernel_buffer;
         kernel_entry();
     }
