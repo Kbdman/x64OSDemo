@@ -8,31 +8,12 @@ EFI_DIR="$ESP_DIR/EFI/BOOT"
 
 mkdir -p "$EFI_DIR"
 
-# Build all C and assembly files under src/ into a flat kernel ELF.
-KERNEL_OBJS=()
-while IFS= read -r src_file; do
-    obj="$BUILD_DIR/$(basename "${src_file%.c}").o"
-    if [[ "$src_file" == *.c ]]; then
-        gcc \
-            -g -O0 \
-            -ffreestanding \
-            -fno-stack-protector \
-            -fno-pie \
-            -mno-red-zone \
-            -c "$src_file" \
-            -o "$obj"
-    elif [[ "$src_file" == *.s || "$src_file" == *.S ]]; then
-        as "$src_file" -o "$obj"
-    fi
-    KERNEL_OBJS+=("$obj")
-done < <(find "$ROOT_DIR/src" -type f \( -name '*.c' -o -name '*.s' -o -name '*.S' \) | sort)
-
-ld -nostdlib -T "$ROOT_DIR/src/kernel.ld" -o "$BUILD_DIR/kernel.elf" "${KERNEL_OBJS[@]}"
+cmake -S "$ROOT_DIR/src" -B "$BUILD_DIR"
+cmake --build "$BUILD_DIR" --target kernel_bin
 
 # Raw kernel binary for copying into the ESP.
 KERNEL_BIN="$ESP_DIR/kernel.bin"
-rm -f "$KERNEL_BIN"
-objcopy -O binary "$BUILD_DIR/kernel.elf" "$KERNEL_BIN"
+cp "$BUILD_DIR/kernel.bin" "$KERNEL_BIN"
 
 # UEFI app build remains as before.
 # compile the main.c
