@@ -22,7 +22,7 @@ qemu-system-x86_64 \
   -S -s \
   -serial stdio \
   -display none \
-  -monitor none \
+  -monitor telnet:127.0.0.1:5555,server,nowait \
   -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
   -drive if=pflash,format=raw,file="$VARS_FILE" \
   -drive format=raw,file=fat:rw:"$BUILD_DIR/esp"

@@ -7,7 +7,8 @@ _start:
     test al,al
     jne _inited
     call init_serial
-    movb [inited],1
+    call show_gdt
+    movb  [inited],1
  _inited:   
     jmp _start
 

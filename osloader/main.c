@@ -134,13 +134,12 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
     for (UINTN i = 0; i < MemoryMapSize / DescriptorSize; i++)
     {
         EFI_MEMORY_DESCRIPTOR *desc = (EFI_MEMORY_DESCRIPTOR *)((UINT8 *)MemoryMap + i * DescriptorSize);
-        if (desc->Type == EfiConventionalMemory)
-            Print(L"Memory Descriptor %lu: Type=%s, PhysicalStart=0x%lx, VirtualStart=0x%lx, NumberOfPages=%lu\r\n",
-                  i,
-                  MemoryTypeName(desc->Type),
-                  desc->PhysicalStart,
-                  desc->VirtualStart,
-                  desc->NumberOfPages);
+        Print(L"Memory Descriptor %lu: Type=%s, PhysicalStart=0x%lx, VirtualStart=0x%lx, NumberOfPages=%lu\r\n",
+              i,
+              MemoryTypeName(desc->Type),
+              desc->PhysicalStart,
+              desc->VirtualStart,
+              desc->NumberOfPages);
         if (desc->Type == EfiConventionalMemory)
         {
             free_pages += desc->NumberOfPages;
