@@ -20,8 +20,9 @@ echo "Run: gdb -q -x debug.gdb"
 qemu-system-x86_64 \
   -m 512M \
   -S -s \
+  -serial stdio \
+  -display none \
   -monitor none \
-  -serial none \
   -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
   -drive if=pflash,format=raw,file="$VARS_FILE" \
   -drive format=raw,file=fat:rw:"$BUILD_DIR/esp"

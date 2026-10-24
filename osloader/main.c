@@ -2,7 +2,7 @@
 #include <efilib.h>
 
 #define PAGE_SIZE 4096
-
+#define NOSLEEP 1
 static EFI_SYSTEM_TABLE *st = NULL;
 
 static inline void outb(unsigned short port, unsigned char value)
@@ -29,6 +29,8 @@ static void debugcon_write_string(const char *s)
 
 void Sleep(UINTN milliseconds)
 {
+    if (NOSLEEP)
+        return;
     EFI_STATUS status = uefi_call_wrapper(st->BootServices->Stall, 1, milliseconds * 1000);
     if (EFI_ERROR(status))
     {

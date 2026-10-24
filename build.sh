@@ -7,6 +7,34 @@ ESP_DIR="$BUILD_DIR/esp"
 EFI_DIR="$ESP_DIR/EFI/BOOT"
 
 mkdir -p "$EFI_DIR"
+
+# Build all C and assembly files under src/ into a flat kernel ELF.
+KERNEL_OBJS=()
+while IFS= read -r src_file; do
+    obj="$BUILD_DIR/$(basename "${src_file%.c}").o"
+    if [[ "$src_file" == *.c ]]; then
+        gcc \
+            -g -O0 \
+            -ffreestanding \
+            -fno-stack-protector \
+            -fno-pie \
+            -mno-red-zone \
+            -c "$src_file" \
+            -o "$obj"
+    elif [[ "$src_file" == *.s || "$src_file" == *.S ]]; then
+        as "$src_file" -o "$obj"
+    fi
+    KERNEL_OBJS+=("$obj")
+done < <(find "$ROOT_DIR/src" -type f \( -name '*.c' -o -name '*.s' -o -name '*.S' \) | sort)
+
+ld -nostdlib -T "$ROOT_DIR/src/kernel.ld" -o "$BUILD_DIR/kernel.elf" "${KERNEL_OBJS[@]}"
+
+# Raw kernel binary for copying into the ESP.
+KERNEL_BIN="$ESP_DIR/kernel.bin"
+rm -f "$KERNEL_BIN"
+objcopy -O binary "$BUILD_DIR/kernel.elf" "$KERNEL_BIN"
+
+# UEFI app build remains as before.
 # compile the main.c
 gcc \
 	-g -O0 \
@@ -52,15 +80,6 @@ objcopy \
 cat > "$ESP_DIR/startup.nsh" <<'NSH'
 fs0:\EFI\BOOT\BOOTX64.EFI
 NSH
-as "$ROOT_DIR/src/start.s" -g -o "$BUILD_DIR/start.o"
-ld "$BUILD_DIR/start.o" -nostdlib -T "$ROOT_DIR/src/kernel.ld" -o "$BUILD_DIR/kernel.elf"
-
-KERNEL_BIN="$ESP_DIR/kernel.bin"
-objcopy \
-	-O binary \
-	"$BUILD_DIR/kernel.elf" \
-	"$KERNEL_BIN"
-
 
 # create a disk image and copy the UEFI executable and startup script into it
 truncate -s 64M "$BUILD_DIR/esp.img"
@@ -71,4 +90,5 @@ mcopy -i "$BUILD_DIR/esp.img" "$ESP_DIR/startup.nsh" ::/startup.nsh
 mcopy -i "$BUILD_DIR/esp.img" "$KERNEL_BIN" ::/kernel.bin
 
 echo "Built UEFI application: $EFI_DIR/BOOTX64.EFI"
+echo "Built flat kernel: $KERNEL_BIN"
 echo "Disk image: $BUILD_DIR/esp.img"
