@@ -264,42 +264,23 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
                 }
                 else
                 {
+                    status = uefi_call_wrapper(SystemTable->BootServices->ExitBootServices, 2, ImageHandle, MapKey);
+                    if (EFI_ERROR(status))
+                    {
+                        Print(L"ExitBootServices failed: %r\r\n", status);
+                        return status;
+                    }
                     break;
                 }
             }
-
-            uint64_t free_pages = 0;
-            for (UINTN i = 0; i < MemoryMapSize / DescriptorSize; i++)
-            {
-                EFI_MEMORY_DESCRIPTOR *desc = (EFI_MEMORY_DESCRIPTOR *)((UINT8 *)MemoryMap + i * DescriptorSize);
-                Print(L"Memory Descriptor %lu: Type=%s, PhysicalStart=0x%lx, VirtualStart=0x%lx, NumberOfPages=%lu\r\n",
-                      i,
-                      MemoryTypeName(desc->Type),
-                      desc->PhysicalStart,
-                      desc->VirtualStart,
-                      desc->NumberOfPages);
-                if (desc->Type == EfiConventionalMemory)
-                {
-                    free_pages += desc->NumberOfPages;
-                }
-            }
-
-            Sleep(10000);
-            Print(L"MemoryMap allocated at: %p\r\n", MemoryMap);
-            Print(L"MemoryMapSize: %lu\r\n", MemoryMapSize);
-            Print(L"DescriptorNumber: %lu\r\n", MemoryMapSize / DescriptorSize);
-            Print(L"DescriptorSize: %lu\r\n", DescriptorSize);
-            Print(L"DescriptorVersion: %u\r\n", DescriptorVersion);
-            Print(L"MapKey: %lu\r\n", MapKey);
-            Print(L"Free Memory Size: %lu MB\r\n", free_pages * PAGE_SIZE / (1024 * 1024));
         }
+
         bootinfo->stack = stack_buffer;
         bootinfo->memory_map = MemoryMap;
         bootinfo->memory_map_size = MemoryMapSize;
         bootinfo->map_key = MapKey;
         bootinfo->descriptor_size = DescriptorSize;
         bootinfo->descriptor_version = DescriptorVersion;
-        Print(L"Jumping to kernel...\r\n");
         void (*kernel_entry)(void) = (void (*)(void))kernel_buffer;
         asm volatile("movq %0, %%rsp" : : "r"(stack_buffer + STACK_SIZE));
         asm volatile("movq %0, %%rdi" : : "r"(bootinfo));

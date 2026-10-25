@@ -23,6 +23,8 @@ target_compile_options(kernel.elf PRIVATE
 target_include_directories(kernel.elf PRIVATE
                     "${CMAKE_CURRENT_SOURCE_DIR}/../boot_info"
                     "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+                    "/usr/include/efi"
+                    "/usr/include/efi/x86_64"
 )
 target_link_options(kernel.elf PRIVATE
     -no-pie
