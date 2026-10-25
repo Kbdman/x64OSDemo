@@ -275,7 +275,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
             }
         }
 
-        bootinfo->stack = stack_buffer;
+        bootinfo->stack = (void *)(UINTN)STACK_ADDR;
         bootinfo->memory_map = MemoryMap;
         bootinfo->memory_map_size = MemoryMapSize;
         bootinfo->map_key = MapKey;
