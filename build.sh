@@ -27,6 +27,7 @@ gcc \
 	-fpic \
 	-mno-red-zone \
 	-maccumulate-outgoing-args \
+	-I "$ROOT_DIR/boot_info" \
 	-c "$ROOT_DIR/osloader/main.c" \
 	-o "$BUILD_DIR/osloader.o"
 # link the osloader.o with uefi libraries

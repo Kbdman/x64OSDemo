@@ -1,5 +1,6 @@
 #include <efi.h>
 #include <efilib.h>
+#include <boot_info.h>
 #define KERNEL_ADDR 0x100000
 #define STACK_ADDR 0x800000
 #define STACK_SIZE 0x200000
@@ -224,6 +225,13 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
             return status;
         }
         Print(L"Stack buffer allocated at: 0x%lx\r\n", stack_buffer);
+        boot_info_t *bootinfo = AllocatePool(sizeof(boot_info_t));
+        if (bootinfo == NULL)
+        {
+            Print(L"AllocatePool for boot info failed\r\n");
+            return EFI_OUT_OF_RESOURCES;
+        }
+        Print(L"Boot info allocated at: 0x%lx\r\n", bootinfo);
         {
             int pages_needed = 1;
             while (1)
@@ -285,10 +293,17 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable
             Print(L"MapKey: %lu\r\n", MapKey);
             Print(L"Free Memory Size: %lu MB\r\n", free_pages * PAGE_SIZE / (1024 * 1024));
         }
-
+        bootinfo->stack = stack_buffer;
+        bootinfo->memory_map = MemoryMap;
+        bootinfo->memory_map_size = MemoryMapSize;
+        bootinfo->map_key = MapKey;
+        bootinfo->descriptor_size = DescriptorSize;
+        bootinfo->descriptor_version = DescriptorVersion;
         Print(L"Jumping to kernel...\r\n");
         void (*kernel_entry)(void) = (void (*)(void))kernel_buffer;
-        kernel_entry();
+        asm volatile("movq %0, %%rsp" : : "r"(stack_buffer + STACK_SIZE));
+        asm volatile("movq %0, %%rdi" : : "r"(bootinfo));
+        asm volatile("jmp *%0" : : "r"(kernel_entry));
     }
     debugcon_write_string("[DEBUGCON] Done. Exiting application.\n");
     Print(L"Done. Exiting application.\r\n");

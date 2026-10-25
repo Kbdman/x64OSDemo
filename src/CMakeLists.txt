@@ -20,7 +20,10 @@ target_compile_options(kernel.elf PRIVATE
     -fno-pie
     -mno-red-zone
 )
-
+target_include_directories(kernel.elf PRIVATE
+                    "${CMAKE_CURRENT_SOURCE_DIR}/../boot_info"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+)
 target_link_options(kernel.elf PRIVATE
     -no-pie
     -nostdlib

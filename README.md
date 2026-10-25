@@ -7,7 +7,7 @@ This repository is a small UEFI-based x64 OS learning project. The current focus
 - Language: C + assembly
 - Boot path: UEFI
 - Emulator: QEMU
-- Debugging: GDB + OVMF debug console
+- Debugging: GDB + COM1 serial output
 
 ## Current project status
 
@@ -16,6 +16,8 @@ This repo currently builds two artifacts:
 - A UEFI application at `build/esp/EFI/BOOT/BOOTX64.EFI`
 - A flat kernel stub at `build/esp/kernel.bin`
 
+The kernel has an assembly entry point, a C entry function, serial output,
+and GDT inspection code.
 
 ## First milestones
 
@@ -30,32 +32,59 @@ This repo currently builds two artifacts:
 9. Add a timer and simple scheduler
 10. Add keyboard input and a basic console
 
-## Suggested repo layout
+## Repo layout
 
 - `src/` - kernel and startup assembly
+- `include/` - kernel headers shared between modules
+- `boot_info/` - shared loader-kernel boot information interface
 - `osloader/` - UEFI bootloader/loader code
 - `build/` - generated binaries and disk images
-- `docs/` - notes and learning logs
 
 ## Build and run
+
+Requires CMake 3.20+, GCC, binutils, GNU-EFI, dosfstools, mtools,
+QEMU, and OVMF. The scripts expect GNU-EFI under `/usr` and firmware under
+`/usr/share/OVMF`.
 
 ```bash
 ./build.sh
 ./run.sh
 ```
 
+`build.sh` builds the kernel with CMake, generates the flat binary with
+`objcopy`, then builds the UEFI loader and packages the ESP disk image.
+`run.sh` boots headless with COM1 connected to the terminal.
+
 Artifacts:
 
 - EFI binary: `build/esp/EFI/BOOT/BOOTX64.EFI`
 - flat kernel stub: `build/esp/kernel.bin`
+- kernel symbols for GDB: `build/kernel.elf`
 - disk image: `build/esp.img`
-- debug log: `build/debugcon.log`
+
+## Debugging
+
+From the repository root, start QEMU paused:
+
+```bash
+./debug.sh
+```
+
+In another terminal, attach GDB:
+
+```bash
+gdb -q -x debug.gdb
+```
+
+Use `continue` to resume if GDB is stopped. The QEMU GDB server uses port
+`1234`; the QEMU monitor is available via telnet at `127.0.0.1:5555`.
 
 ## Notes
 
-- The UEFI program uses QEMU's OVMF debug console at I/O port `0x402` and writes to `build/debugcon.log`.
-- `Print(L"...")` output is visible in the UEFI console when running in GUI mode, but the repo's default workflow uses the debug console for terminal-friendly logging.
-- Terminal output is filtered to printable ASCII characters for easier reading.
+- Kernel serial output uses COM1 (`0x3F8`), routed to the terminal with
+  QEMU's `-serial stdio`.
+- Firmware debugcon output at `0x402` is separate from COM1 and is not captured
+  by the current launch scripts.
 
 ## Reference
 
