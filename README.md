@@ -38,6 +38,7 @@ and GDT inspection code.
 - `include/` - kernel headers shared between modules
 - `boot_info/` - shared loader-kernel boot information interface
 - `osloader/` - UEFI bootloader/loader code
+- `test/` - host-side unit tests with captured serial output
 - `build/` - generated binaries and disk images
 
 ## Build and run
@@ -61,6 +62,20 @@ Artifacts:
 - flat kernel stub: `build/esp/kernel.bin`
 - kernel symbols for GDB: `build/kernel.elf`
 - disk image: `build/esp.img`
+
+## Unit tests
+
+Run on a 64-bit Linux host without QEMU or GNU-EFI:
+
+```bash
+cmake -S test -B build/tests
+cmake --build build/tests
+ctest --test-dir build/tests --output-on-failure
+```
+
+The tests exercise `print_string`, `print_hex`, and the kernel `printf`,
+including integer boundaries, pointers, and variadic stack arguments.
+Serial writes are captured in memory rather than sent to hardware.
 
 ## Debugging
 

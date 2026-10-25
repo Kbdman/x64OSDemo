@@ -1,4 +1,4 @@
-#include "serial.h"
+#include <common.h>
 typedef struct __attribute__((packed))
 {
     unsigned long long info;
@@ -25,23 +25,15 @@ void get_gdt()
 void show_gdt()
 {
     get_gdt();
-    write_string_serial("GDT Base: ");
-    write_hex_serial((unsigned long)gdt.base);
-    write_string_serial("\t");
-    write_string_serial("GDT Limit: ");
-    write_hex_serial((unsigned long)gdt.limit);
-    write_string_serial("\n");
+    printf("GDT Base: %p\tGDT Limit: %x\n",
+           (void *)gdt.base, (unsigned int)gdt.limit);
     for (int i = 0; i <= gdt.limit / sizeof(segment_descriptor); i++)
     {
         segment_descriptor *seg = &gdt.base[i];
         unsigned long base = get_base(seg);
-        write_string_serial("Segment Base: ");
-        write_hex_serial(base);
-        write_string_serial("\t");
-        write_string_serial("Limit: ");
-        write_hex_serial((unsigned long)(seg->info & 0xFFFF));
-        write_string_serial("\tType: ");
-        write_hex_serial((unsigned long)get_type(seg));
-        write_string_serial("\n");
+        printf("Segment Base: %p\tLimit: %x\tType: %x\n",
+               (void *)base,
+               (unsigned int)(seg->info & 0xFFFF),
+               (unsigned int)get_type(seg));
     }
 }
