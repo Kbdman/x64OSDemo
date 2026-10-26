@@ -84,6 +84,15 @@ static void test_stack_args(void)
     expect_output("12345678");
 }
 
+static void test_width(void)
+{
+    printf("|%5d|%-5d|%05d|%08x|%8s|%-6s|%5c|%5%|",
+           42, 42, -42, 0x2au, "x", "xy", 'Z');
+    expect_output("|   42|42   |-0042|0000002a|       x|xy    |    Z|    %|");
+    printf("%020p", (void *)0);
+    expect_output("0x000000000000000000");
+}
+
 int main(int argc, char **argv)
 {
     _Static_assert(sizeof(unsigned long) == 8, "Tests require a 64-bit Linux host");
@@ -102,6 +111,8 @@ int main(int argc, char **argv)
         test_fallback();
     else if (strcmp(argv[1], "stack_args") == 0)
         test_stack_args();
+    else if (strcmp(argv[1], "width") == 0)
+        test_width();
     else
         return 1;
     return 0;
