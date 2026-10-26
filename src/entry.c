@@ -20,6 +20,7 @@ void parse_boot_info(boot_info_t *bootinfo)
     printf("descriptor version: %d\n", (unsigned int)bootinfo->descriptor_version);
     printf("Number of memory map entries: %d\n", descriptor_count);
     unsigned int free_pages = 0;
+    void *max_physical_address = 0;
     for (int i = 0; i < descriptor_count; i++)
     {
         EFI_MEMORY_DESCRIPTOR *desc =
@@ -28,9 +29,19 @@ void parse_boot_info(boot_info_t *bootinfo)
         printf("Physical Start: %016p, Number of Pages: %10d,Type: %s\n",
                (void *)desc->PhysicalStart, desc->NumberOfPages, MemoryTypeName(desc->Type));
         if (desc->Type == EfiConventionalMemory)
+        {
             free_pages += desc->NumberOfPages;
+        }
+        if (desc->Type != EfiReservedMemoryType && desc->Type != EfiMemoryMappedIO)
+        {
+            void *end_address = (void *)(desc->PhysicalStart + desc->NumberOfPages * 4096);
+            if (end_address > max_physical_address)
+                max_physical_address = end_address;
+        }
     }
     printf("Total free pages: %d, size: %d MB\n", free_pages, free_pages * 4096 / 1024 / 1024);
+    uint64_t total_pages = (uint64_t)max_physical_address / 4096;
+    printf("Max physical address: %p , total page number: %d, bitmap size: %d pages\n", max_physical_address, total_pages, total_pages / 8 / 4096);
 }
 void entry(boot_info_t *bootinfo)
 {
