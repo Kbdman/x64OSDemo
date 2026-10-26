@@ -90,7 +90,13 @@ static void test_width(void)
            42, 42, -42, 0x2au, "x", "xy", 'Z');
     expect_output("|   42|42   |-0042|0000002a|       x|xy    |    Z|    %|");
     printf("%020p", (void *)0);
-    expect_output("0x000000000000000000");
+    expect_output("0x00000000000000000000");
+    printf("|%5p|%-5p|%05p|", (void *)(uintptr_t)0x2a,
+           (void *)(uintptr_t)0x2a, (void *)(uintptr_t)0x2a);
+    expect_output("|   0x2a|0x2a   |0x0002a|");
+    printf("|%1p|%02p|%016p|", (void *)(uintptr_t)0x123,
+           (void *)0, (void *)(uintptr_t)UINT64_MAX);
+    expect_output("|0x123|0x00|0xffffffffffffffff|");
 }
 
 int main(int argc, char **argv)

@@ -3,7 +3,47 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
-
+#include <efi.h>
+const char *MemoryTypeName(EFI_MEMORY_TYPE type)
+{
+    switch (type)
+    {
+    case EfiReservedMemoryType:
+        return "EfiReservedMemoryType";
+    case EfiLoaderCode:
+        return "EfiLoaderCode";
+    case EfiLoaderData:
+        return "EfiLoaderData";
+    case EfiBootServicesCode:
+        return "EfiBootServicesCode";
+    case EfiBootServicesData:
+        return "EfiBootServicesData";
+    case EfiRuntimeServicesCode:
+        return "EfiRuntimeServicesCode";
+    case EfiRuntimeServicesData:
+        return "EfiRuntimeServicesData";
+    case EfiConventionalMemory:
+        return "EfiConventionalMemory";
+    case EfiUnusableMemory:
+        return "EfiUnusableMemory";
+    case EfiACPIReclaimMemory:
+        return "EfiACPIReclaimMemory";
+    case EfiACPIMemoryNVS:
+        return "EfiACPIMemoryNVS";
+    case EfiMemoryMappedIO:
+        return "EfiMemoryMappedIO";
+    case EfiMemoryMappedIOPortSpace:
+        return "EfiMemoryMappedIOPortSpace";
+    case EfiPalCode:
+        return "EfiPalCode";
+    case EfiPersistentMemory:
+        return "EfiPersistentMemory";
+    case EfiUnacceptedMemoryType:
+        return "EfiUnacceptedMemoryType";
+    default:
+        return "Unknown";
+    }
+}
 void print_string(const char *str)
 {
     while (*str)
@@ -43,9 +83,10 @@ static size_t number_to_string(uintptr_t value, unsigned int base, char *buffer)
 }
 
 static void write_field(const char *value, size_t length, size_t width,
-                        int left_align, char padding, size_t prefix_length)
+                        int left_align, char padding, size_t prefix_length,
+                        size_t field_length)
 {
-    size_t pad_count = width > length ? width - length : 0;
+    size_t pad_count = width > field_length ? width - field_length : 0;
     if (!left_align && padding == '0' && prefix_length != 0)
     {
         for (size_t i = 0; i < prefix_length; i++)
@@ -179,7 +220,7 @@ void printf(const char *format, ...)
         }
         write_field(value, length, width, left_align,
                     zero_pad && numeric && !left_align ? '0' : ' ',
-                    prefix_length);
+                    prefix_length, *format == 'p' ? length - 2 : length);
         format++;
     }
     va_end(args);

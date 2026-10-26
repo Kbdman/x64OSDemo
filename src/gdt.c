@@ -31,7 +31,7 @@ void show_gdt()
     {
         segment_descriptor *seg = &gdt.base[i];
         unsigned long base = get_base(seg);
-        printf("Segment Base: %p\tLimit: %x\tType: %x\n",
+        printf("Segment Base: %08p\tLimit: %04x\tType: %x\n",
                (void *)base,
                (unsigned int)(seg->info & 0xFFFF),
                (unsigned int)get_type(seg));
