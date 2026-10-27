@@ -1,0 +1,14 @@
+#ifndef PHYSICAL_PAGES_H
+#define PHYSICAL_PAGES_H
+
+#include <stdint.h>
+#include <boot_info.h>
+#define PAGE_NUMBER_TYPE uint64_t
+typedef struct __attribute__((packed))
+{
+    PAGE_NUMBER_TYPE mapsize; // size of the bitmap in bytes
+    uint8_t bitmap[];         // bitmap for tracking used physical pages, 0 for free, 1 for used
+} physical_pages_map_t;
+void init_physical_pages_map(boot_info_t *bootinfo);
+void mark_pages(uint64_t start, uint64_t count, int used);
+#endif // PHYSICAL_PAGES_H

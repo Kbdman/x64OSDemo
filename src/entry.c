@@ -2,6 +2,8 @@
 #include <common.h>
 #include <serial.h>
 #include <gdt.h>
+#include <physical_pages.h>
+#include <efi.h>
 void parse_boot_info(boot_info_t *bootinfo)
 {
     if (bootinfo->descriptor_version != EFI_MEMORY_DESCRIPTOR_VERSION)
@@ -14,34 +16,7 @@ void parse_boot_info(boot_info_t *bootinfo)
     uint64_t descriptor_count = map_size / descriptor_size;
     printf("Boot info at %p\n", (void *)bootinfo);
     printf("Stack at %p\n", bootinfo->stack);
-    printf("Memory map at %p\n", (void *)bootinfo->memory_map);
-    printf("Memory map size: %d\n", (unsigned int)bootinfo->memory_map_size);
-    printf("descriptor size: %d\n", (unsigned int)bootinfo->descriptor_size);
-    printf("descriptor version: %d\n", (unsigned int)bootinfo->descriptor_version);
-    printf("Number of memory map entries: %d\n", descriptor_count);
-    unsigned int free_pages = 0;
-    void *max_physical_address = 0;
-    for (int i = 0; i < descriptor_count; i++)
-    {
-        EFI_MEMORY_DESCRIPTOR *desc =
-            (EFI_MEMORY_DESCRIPTOR *)((uint8_t *)bootinfo->memory_map + i * descriptor_size);
-        printf("Memory map entry %3d at %p\t", i, desc);
-        printf("Physical Start: %016p, Number of Pages: %10d,Type: %s\n",
-               (void *)desc->PhysicalStart, desc->NumberOfPages, MemoryTypeName(desc->Type));
-        if (desc->Type == EfiConventionalMemory)
-        {
-            free_pages += desc->NumberOfPages;
-        }
-        if (desc->Type != EfiReservedMemoryType && desc->Type != EfiMemoryMappedIO)
-        {
-            void *end_address = (void *)(desc->PhysicalStart + desc->NumberOfPages * 4096);
-            if (end_address > max_physical_address)
-                max_physical_address = end_address;
-        }
-    }
-    printf("Total free pages: %d, size: %d MB\n", free_pages, free_pages * 4096 / 1024 / 1024);
-    uint64_t total_pages = (uint64_t)max_physical_address / 4096;
-    printf("Max physical address: %p , total page number: %d, bitmap size: %d pages\n", max_physical_address, total_pages, total_pages / 8 / 4096);
+    init_physical_pages_map(bootinfo);
 }
 void entry(boot_info_t *bootinfo)
 {

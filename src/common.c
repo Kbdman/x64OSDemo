@@ -225,3 +225,17 @@ void printf(const char *format, ...)
     }
     va_end(args);
 }
+uint64_t upround(uint64_t value, uint64_t alignment)
+{
+    return (value + alignment - 1) / alignment * alignment;
+}
+void *upround_to_page(void *address)
+{
+    return (void *)upround((uint64_t)address, PAGE_SIZE);
+}
+void memset(void *ptr, unsigned char value, uint64_t size)
+{
+    unsigned char *p = (unsigned char *)ptr;
+    for (uint64_t i = 0; i < size; i++)
+        p[i] = value;
+}

@@ -1,6 +1,7 @@
 # x64 OS development learning repo
 
-This repository is a small UEFI-based x64 OS learning project. The current focus is understanding how an x64 machine boots under UEFI.
+This repository is a small UEFI-based x64 OS learning project, currently focused
+on booting and physical memory management.
 ## Recommended starting stack
 
 - Host OS: Linux
@@ -16,8 +17,9 @@ This repo currently builds two artifacts:
 - A UEFI application at `build/esp/EFI/BOOT/BOOTX64.EFI`
 - A flat kernel stub at `build/esp/kernel.bin`
 
-The kernel has an assembly entry point, a C entry function, serial output,
-and GDT inspection code.
+The kernel has assembly and C entry points, serial output, GDT inspection,
+UEFI memory-map parsing, and initial physical-page bitmap tracking.
+Page allocation and freeing are not implemented yet.
 
 ## First milestones
 
@@ -65,7 +67,7 @@ Artifacts:
 
 ## Unit tests
 
-Run on a 64-bit Linux host without QEMU or GNU-EFI:
+Run on a 64-bit Linux host with GNU-EFI headers installed; QEMU is not required:
 
 ```bash
 cmake -S test -B build/tests
@@ -73,9 +75,9 @@ cmake --build build/tests
 ctest --test-dir build/tests --output-on-failure
 ```
 
-The tests exercise `print_string`, `print_hex`, and the kernel `printf`,
-including integer boundaries, pointers, and variadic stack arguments.
-Serial writes are captured in memory rather than sent to hardware.
+Tests cover serial formatting, rounding helpers, `memset`, and physical-page
+bitmap operations. Hardware access is replaced with host-side test fixtures;
+UEFI memory-map initialization is not covered.
 
 ## Debugging
 

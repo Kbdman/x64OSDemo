@@ -5,6 +5,8 @@
 #include <limits.h>
 #include <stdint.h>
 #include <string.h>
+/* The kernel memset has a different signature from libc memset. */
+#define memset kernel_memset
 #include <common.h>
 #include <serial.h>
 
@@ -99,6 +101,92 @@ static void test_width(void)
     expect_output("|0x123|0x00|0xffffffffffffffff|");
 }
 
+static void test_upround(void)
+{
+    static const struct
+    {
+        uint64_t value;
+        uint64_t alignment;
+        uint64_t expected;
+    } cases[] = {
+        {0, 8, 0},
+        {1, 8, 8},
+        {7, 8, 8},
+        {8, 8, 8},
+        {9, 8, 16},
+        {5, 3, 6},
+        {6, 3, 6},
+        {21, 10, 30},
+        {0, 1, 0},
+        {UINT64_MAX, 1, UINT64_MAX},
+        {UINT64_C(0x100000001), 8, UINT64_C(0x100000008)},
+        {UINT64_MAX - 8, 8, UINT64_MAX - 7},
+        {UINT64_MAX - 7, 8, UINT64_MAX - 7},
+    };
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+        assert(upround(cases[i].value, cases[i].alignment) == cases[i].expected);
+}
+
+static void test_upround_to_page(void)
+{
+    static const struct
+    {
+        uintptr_t address;
+        uintptr_t expected;
+    } cases[] = {
+        {0, 0},
+        {1, PAGE_SIZE},
+        {PAGE_SIZE - 1, PAGE_SIZE},
+        {PAGE_SIZE, PAGE_SIZE},
+        {PAGE_SIZE + 1, 2 * PAGE_SIZE},
+        {2 * PAGE_SIZE - 1, 2 * PAGE_SIZE},
+        {2 * PAGE_SIZE, 2 * PAGE_SIZE},
+        {UINT64_C(0x100000001), UINT64_C(0x100001000)},
+        {UINTPTR_MAX - PAGE_SIZE, UINTPTR_MAX - (PAGE_SIZE - 1)},
+        {UINTPTR_MAX - (PAGE_SIZE - 1), UINTPTR_MAX - (PAGE_SIZE - 1)},
+    };
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        void *result = upround_to_page((void *)cases[i].address);
+        assert((uintptr_t)result == cases[i].expected);
+    }
+}
+
+static void test_memset(void)
+{
+    unsigned char buffer[PAGE_SIZE + 3];
+    static const unsigned char values[] = {0, 0x55, 0x80, 0xff};
+    static const size_t lengths[] = {0, 1, 7, 8, 9, PAGE_SIZE, PAGE_SIZE + 1};
+
+    for (size_t v = 0; v < sizeof(values) / sizeof(values[0]); v++)
+    {
+        for (size_t n = 0; n < sizeof(lengths) / sizeof(lengths[0]); n++)
+        {
+            for (size_t i = 0; i < sizeof(buffer); i++)
+                buffer[i] = 0xa5;
+
+            memset(buffer + 1, values[v], lengths[n]);
+
+            for (size_t i = 0; i < sizeof(buffer); i++)
+            {
+                unsigned char expected =
+                    i >= 1 && i - 1 < lengths[n] ? values[v] : 0xa5;
+                assert(buffer[i] == expected);
+            }
+        }
+    }
+
+    memset(buffer, 0x42, sizeof(buffer));
+    for (size_t i = 0; i < sizeof(buffer); i++)
+        assert(buffer[i] == 0x42);
+
+    memset(buffer + sizeof(buffer), 0xff, 0);
+    for (size_t i = 0; i < sizeof(buffer); i++)
+        assert(buffer[i] == 0x42);
+}
+
 int main(int argc, char **argv)
 {
     _Static_assert(sizeof(unsigned long) == 8, "Tests require a 64-bit Linux host");
@@ -119,6 +207,12 @@ int main(int argc, char **argv)
         test_stack_args();
     else if (strcmp(argv[1], "width") == 0)
         test_width();
+    else if (strcmp(argv[1], "upround") == 0)
+        test_upround();
+    else if (strcmp(argv[1], "upround_to_page") == 0)
+        test_upround_to_page();
+    else if (strcmp(argv[1], "memset") == 0)
+        test_memset();
     else
         return 1;
     return 0;
