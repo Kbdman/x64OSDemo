@@ -32,6 +32,8 @@ target_compile_features(test_physical_pages PRIVATE c_std_11)
 target_compile_definitions(test_physical_pages PRIVATE printf=kernel_printf)
 target_compile_options(test_physical_pages PRIVATE -ffreestanding -Wall -Wextra -Werror)
 
-foreach(case IN ITEMS uninitialized mark clear zero_count bounds print)
+foreach(case IN ITEMS uninitialized mark clear zero_count allocate
+                      allocate_fragmented allocate_bounds allocate_at
+                      allocate_invalid_map bounds print)
     add_test(NAME physical_pages_${case} COMMAND test_physical_pages ${case})
 endforeach()

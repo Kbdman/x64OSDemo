@@ -26,6 +26,7 @@ static void setup_map(size_t bytes, unsigned char value)
 {
     physical_pages_map = malloc(sizeof(*physical_pages_map) + bytes + 1);
     assert(physical_pages_map != NULL);
+    physical_pages_map->total_pages = bytes * 8;
     physical_pages_map->mapsize = bytes;
     for (size_t i = 0; i < bytes; i++)
         physical_pages_map->bitmap[i] = value;
@@ -84,6 +85,87 @@ static void test_zero_count(void)
     expect_bitmap(0x5a, 0x5a);
 }
 
+static void test_allocate(void)
+{
+    assert(allocate_page(1) == NULL);
+
+    setup_map(1, 0);
+    physical_pages_map->total_pages = 8;
+
+    assert(allocate_page(0) == NULL);
+    assert(physical_pages_map->bitmap[0] == 0x00);
+
+    assert((uintptr_t)allocate_page(1) == PAGE_SIZE);
+    assert(physical_pages_map->bitmap[0] == 0x02);
+
+    assert((uintptr_t)allocate_page(2) == 2 * PAGE_SIZE);
+    assert(physical_pages_map->bitmap[0] == 0x0e);
+
+    assert((uintptr_t)allocate_page(4) == 4 * PAGE_SIZE);
+    assert(physical_pages_map->bitmap[0] == 0xfe);
+    assert(allocate_page(2) == NULL);
+    assert(allocate_page(1) == NULL);
+}
+
+static void test_allocate_fragmented(void)
+{
+    setup_map(1, 0xff);
+    physical_pages_map->total_pages = 8;
+    mark_pages(PAGE_SIZE, 1, 0);
+    mark_pages(3 * PAGE_SIZE, 1, 0);
+    mark_pages(5 * PAGE_SIZE, 1, 0);
+
+    assert(allocate_page(2) == NULL);
+    assert(physical_pages_map->bitmap[0] == 0xd5);
+}
+
+static void test_allocate_bounds(void)
+{
+    setup_map(1, 0xff);
+    physical_pages_map->total_pages = 8;
+    mark_pages(6 * PAGE_SIZE, 2, 0);
+
+    assert((uintptr_t)allocate_page(2) == 6 * PAGE_SIZE);
+    assert(physical_pages_map->bitmap[0] == 0xff);
+
+    mark_pages(2 * PAGE_SIZE, 1, 0);
+    assert(allocate_page(UINT64_MAX) == NULL);
+    assert(physical_pages_map->bitmap[0] == 0xfb);
+}
+
+static void test_allocate_invalid_map(void)
+{
+    setup_map(1, 0);
+    physical_pages_map->total_pages = 9;
+    assert(allocate_page(1) == NULL);
+    assert(allocate_page_at(PAGE_SIZE, 1) == NULL);
+    assert(physical_pages_map->bitmap[0] == 0);
+}
+
+static void test_allocate_at(void)
+{
+    assert(allocate_page_at(PAGE_SIZE, 1) == NULL);
+
+    setup_map(2, 0xff);
+    physical_pages_map->total_pages = 16;
+    mark_pages(PAGE_SIZE, 15, 0);
+
+    assert(allocate_page_at(PAGE_SIZE, 0) == NULL);
+    assert(allocate_page_at(0, 1) == NULL);
+    assert(allocate_page_at(PAGE_SIZE + 1, 1) == NULL);
+    assert(physical_pages_map->bitmap[0] == 0x01);
+    assert((uintptr_t)allocate_page_at(PAGE_SIZE, 2) == PAGE_SIZE);
+    expect_bitmap(0x07, 0x00);
+
+    assert(allocate_page_at(PAGE_SIZE, 1) == NULL);
+    assert((uintptr_t)allocate_page_at(14 * PAGE_SIZE, 2) == 14 * PAGE_SIZE);
+    expect_bitmap(0x07, 0xc0);
+
+    assert(allocate_page_at(15 * PAGE_SIZE, 2) == NULL);
+    assert(allocate_page_at(UINT64_MAX - (PAGE_SIZE - 1), 2) == NULL);
+    expect_bitmap(0x07, 0xc0);
+}
+
 static void test_bounds(void)
 {
     setup_map(2, 0x5a);
@@ -140,6 +222,16 @@ int main(int argc, char **argv)
         test_clear();
     else if (strcmp(argv[1], "zero_count") == 0)
         test_zero_count();
+    else if (strcmp(argv[1], "allocate") == 0)
+        test_allocate();
+    else if (strcmp(argv[1], "allocate_fragmented") == 0)
+        test_allocate_fragmented();
+    else if (strcmp(argv[1], "allocate_bounds") == 0)
+        test_allocate_bounds();
+    else if (strcmp(argv[1], "allocate_at") == 0)
+        test_allocate_at();
+    else if (strcmp(argv[1], "allocate_invalid_map") == 0)
+        test_allocate_invalid_map();
     else if (strcmp(argv[1], "bounds") == 0)
         test_bounds();
     else if (strcmp(argv[1], "print") == 0)

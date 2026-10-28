@@ -18,8 +18,8 @@ This repo currently builds two artifacts:
 - A flat kernel stub at `build/esp/kernel.bin`
 
 The kernel has assembly and C entry points, serial output, GDT inspection,
-UEFI memory-map parsing, and initial physical-page bitmap tracking.
-Page allocation and freeing are not implemented yet.
+UEFI memory-map parsing, physical-page bitmap tracking, and contiguous page
+allocation. Freeing pages is not implemented yet.
 
 ## First milestones
 
@@ -76,8 +76,8 @@ ctest --test-dir build/tests --output-on-failure
 ```
 
 Tests cover serial formatting, rounding helpers, `memset`, and physical-page
-bitmap operations. Hardware access is replaced with host-side test fixtures;
-UEFI memory-map initialization is not covered.
+bitmap operations and allocation. Hardware access is replaced with host-side
+test fixtures; UEFI memory-map initialization is not covered.
 
 ## Debugging
 

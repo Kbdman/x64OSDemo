@@ -6,9 +6,13 @@
 #define PAGE_NUMBER_TYPE uint64_t
 typedef struct __attribute__((packed))
 {
-    PAGE_NUMBER_TYPE mapsize; // size of the bitmap in bytes
-    uint8_t bitmap[];         // bitmap for tracking used physical pages, 0 for free, 1 for used
+    PAGE_NUMBER_TYPE total_pages; // total number of physical pages
+    PAGE_NUMBER_TYPE mapsize;     // size of the bitmap in bytes
+    uint8_t bitmap[];             // bitmap for tracking used physical pages, 0 for free, 1 for used
 } physical_pages_map_t;
 void init_physical_pages_map(boot_info_t *bootinfo);
 void mark_pages(uint64_t start, uint64_t count, int used);
+void *allocate_page(uint64_t count);
+void *allocate_page_at(uint64_t start, uint64_t count);
+void print_physical_pages_map();
 #endif // PHYSICAL_PAGES_H
