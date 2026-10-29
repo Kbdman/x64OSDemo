@@ -21,5 +21,6 @@ void init_physical_pages_map(boot_info_t *bootinfo);
 void mark_pages(uint64_t start, uint64_t count, page_status status);
 void *allocate_page(uint64_t count);
 void *allocate_page_at(uint64_t start, uint64_t count);
+void free_page(void *addr, uint64_t count);
 void print_physical_pages_map();
 #endif // PHYSICAL_PAGES_H

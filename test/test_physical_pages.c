@@ -170,6 +170,51 @@ static void test_allocate_at(void)
     assert(physical_pages_map->bitmap[3] == 0x50);
 }
 
+static void test_free_page(void)
+{
+    setup_map(2, 0xff);
+    physical_pages_map->total_pages = 8;
+    mark_pages(PAGE_SIZE, 3, PAGE_FREE);
+
+    void *first = allocate_page(2);
+    assert((uintptr_t)first == PAGE_SIZE);
+    assert(physical_pages_map->bitmap[0] == 0x17);
+
+    free_page(first, 2);
+    assert(physical_pages_map->bitmap[0] == 0x03);
+    assert(physical_pages_map->bitmap[1] == 0xff);
+    assert(physical_pages_map->bitmap[2] == 0xa5);
+
+    assert((uintptr_t)allocate_page(2) == PAGE_SIZE);
+    assert(physical_pages_map->bitmap[0] == 0x17);
+}
+
+static void test_free_page_rejects_invalid_range(void)
+{
+    setup_map(2, 0xaa);
+    physical_pages_map->total_pages = 8;
+    mark_pages(PAGE_SIZE, 1, PAGE_USED);
+    unsigned char before[2] = {
+        physical_pages_map->bitmap[0],
+        physical_pages_map->bitmap[1],
+    };
+
+    free_page((void *)(PAGE_SIZE + 1), 1);
+    free_page((void *)PAGE_SIZE, 2);
+    free_page((void *)(7 * PAGE_SIZE), 2);
+    free_page((void *)(UINT64_MAX & ~(PAGE_SIZE - 1)), 1);
+    free_page((void *)PAGE_SIZE, 0);
+
+    assert(physical_pages_map->bitmap[0] == before[0]);
+    assert(physical_pages_map->bitmap[1] == before[1]);
+    assert(physical_pages_map->bitmap[2] == 0xa5);
+
+    free_page((void *)PAGE_SIZE, 1);
+    assert(physical_pages_map->bitmap[0] == 0xa2);
+    free_page((void *)PAGE_SIZE, 1);
+    assert(physical_pages_map->bitmap[0] == 0xa2);
+}
+
 static void test_bounds(void)
 {
     setup_map(2, 0x5a);
@@ -237,6 +282,10 @@ int main(int argc, char **argv)
         test_allocate_bounds();
     else if (strcmp(argv[1], "allocate_at") == 0)
         test_allocate_at();
+    else if (strcmp(argv[1], "free_page") == 0)
+        test_free_page();
+    else if (strcmp(argv[1], "free_page_invalid") == 0)
+        test_free_page_rejects_invalid_range();
     else if (strcmp(argv[1], "allocate_invalid_map") == 0)
         test_allocate_invalid_map();
     else if (strcmp(argv[1], "bounds") == 0)

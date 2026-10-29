@@ -3,7 +3,7 @@
 #include <common.h>
 #define BIT_FOR_ONEPAGE 2
 #define PAGES_PER_BYTE (8 / BIT_FOR_ONEPAGE)
-#define BIT_MASK ((1 << BIT_FOR_ONEPAGE) - 1)
+#define PAGE_BIT_MASK ((1 << BIT_FOR_ONEPAGE) - 1)
 
 physical_pages_map_t *physical_pages_map = (physical_pages_map_t *)-1;
 
@@ -42,7 +42,7 @@ void mark_pages(uint64_t start, uint64_t count, page_status status)
         uint64_t byte_index = page / PAGES_PER_BYTE;
         uint8_t bit_index = (page % PAGES_PER_BYTE) * BIT_FOR_ONEPAGE;
         uint8_t *byte = &physical_pages_map->bitmap[byte_index];
-        *byte &= ~(BIT_MASK << bit_index);
+        *byte &= ~(PAGE_BIT_MASK << bit_index);
         *byte |= (status << bit_index);
     }
 }
@@ -55,7 +55,7 @@ void *allocate_page(uint64_t count)
     {
         uint64_t byte_index = i / PAGES_PER_BYTE;
         uint8_t bit_index = (i % PAGES_PER_BYTE) * BIT_FOR_ONEPAGE;
-        if ((physical_pages_map->bitmap[byte_index] & (BIT_MASK << bit_index)) == 0)
+        if ((physical_pages_map->bitmap[byte_index] & (PAGE_BIT_MASK << bit_index)) == 0)
         {
             uint64_t start_page = i;
             if (count > physical_pages_map->total_pages - start_page)
@@ -66,7 +66,7 @@ void *allocate_page(uint64_t count)
                 uint64_t j = start_page + offset;
                 uint64_t byte_index_j = j / PAGES_PER_BYTE;
                 uint8_t bit_index_j = (j % PAGES_PER_BYTE) * BIT_FOR_ONEPAGE;
-                if ((physical_pages_map->bitmap[byte_index_j] & (BIT_MASK << bit_index_j)) != 0)
+                if ((physical_pages_map->bitmap[byte_index_j] & (PAGE_BIT_MASK << bit_index_j)) != 0)
                 {
                     all_free = 0;
                     i = j; // skip to the next unchecked page after the used one
@@ -97,7 +97,7 @@ void *allocate_page_at(uint64_t start, uint64_t count)
         uint64_t i = start_page + offset;
         uint64_t byte_index_i = i / PAGES_PER_BYTE;
         uint8_t bit_index_i = (i % PAGES_PER_BYTE) * BIT_FOR_ONEPAGE;
-        if ((physical_pages_map->bitmap[byte_index_i] & (BIT_MASK << bit_index_i)) != 0)
+        if ((physical_pages_map->bitmap[byte_index_i] & (PAGE_BIT_MASK << bit_index_i)) != 0)
         {
             all_free = 0;
             break;
@@ -209,4 +209,43 @@ void init_physical_pages_map(boot_info_t *bootinfo)
         }
     }
     print_physical_pages_map();
+}
+static int check_page_status(void *addr, uint64_t count, page_status status)
+{
+    if (addr == NULL || count == 0 ||
+        status < PAGE_FREE || status >= PAGE_UNDEFINED)
+        return 0;
+    if (!physical_pages_map_is_valid())
+        return 0;
+    uint64_t address = (uint64_t)addr;
+    if (address % PAGE_SIZE != 0)
+        return 0;
+    uint64_t start_page = address / PAGE_SIZE;
+    if (start_page >= physical_pages_map->total_pages ||
+        count > physical_pages_map->total_pages - start_page)
+        return 0;
+
+    for (uint64_t offset = 0; offset < count; offset++)
+    {
+        uint64_t page = start_page + offset;
+        uint64_t byte_index = page / PAGES_PER_BYTE;
+        uint8_t bit_index = (page % PAGES_PER_BYTE) * BIT_FOR_ONEPAGE;
+        uint8_t page_status_value =
+            (physical_pages_map->bitmap[byte_index] >> bit_index) & PAGE_BIT_MASK;
+        if (status != page_status_value)
+            return 0;
+    }
+    return 1;
+}
+
+void free_page(void *addr, uint64_t count)
+{
+    if (addr == NULL || count == 0)
+        return;
+    if (!physical_pages_map_is_valid())
+        return;
+    if (check_page_status(addr, count, PAGE_USED) == 1)
+        mark_pages((uint64_t)addr, count, PAGE_FREE);
+    else
+        printf("Attempted to free pages that are not marked as used\n");
 }

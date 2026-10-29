@@ -34,6 +34,7 @@ target_compile_options(test_physical_pages PRIVATE -ffreestanding -Wall -Wextra 
 
 foreach(case IN ITEMS uninitialized mark clear zero_count allocate
                       allocate_fragmented allocate_bounds allocate_at
+                      free_page free_page_invalid
                       allocate_invalid_map bounds print)
     add_test(NAME physical_pages_${case} COMMAND test_physical_pages ${case})
 endforeach()
