@@ -26,7 +26,7 @@ static void setup_map(size_t bytes, unsigned char value)
 {
     physical_pages_map = malloc(sizeof(*physical_pages_map) + bytes + 1);
     assert(physical_pages_map != NULL);
-    physical_pages_map->total_pages = bytes * 8;
+    physical_pages_map->total_pages = bytes * 4;
     physical_pages_map->mapsize = bytes;
     for (size_t i = 0; i < bytes; i++)
         physical_pages_map->bitmap[i] = value;
@@ -52,36 +52,36 @@ static void test_uninitialized(void)
 static void test_mark(void)
 {
     setup_map(2, 0);
-    mark_pages(0, 1, 1);
+    mark_pages(0, 1, PAGE_USED);
     expect_bitmap(0x01, 0x00);
-    mark_pages(6 * PAGE_SIZE, 4, 1);
-    expect_bitmap(0xc1, 0x03);
-    mark_pages(6 * PAGE_SIZE, 4, 1);
-    expect_bitmap(0xc1, 0x03);
-    mark_pages(15 * PAGE_SIZE, 1, 2);
-    expect_bitmap(0xc1, 0x83);
-    mark_pages(0, 16, 1);
-    expect_bitmap(0xff, 0xff);
+    mark_pages(2 * PAGE_SIZE, 4, PAGE_USED);
+    expect_bitmap(0x51, 0x05);
+    mark_pages(2 * PAGE_SIZE, 4, PAGE_USED);
+    expect_bitmap(0x51, 0x05);
+    mark_pages(7 * PAGE_SIZE, 1, PAGE_RESERVED);
+    expect_bitmap(0x51, 0x85);
+    mark_pages(0, 8, PAGE_USED);
+    expect_bitmap(0x55, 0x55);
 }
 
 static void test_clear(void)
 {
     setup_map(2, 0xff);
-    mark_pages(6 * PAGE_SIZE, 4, 0);
-    expect_bitmap(0x3f, 0xfc);
-    mark_pages(6 * PAGE_SIZE, 4, 0);
-    expect_bitmap(0x3f, 0xfc);
-    mark_pages(15 * PAGE_SIZE, 1, 0);
-    expect_bitmap(0x3f, 0x7c);
-    mark_pages(0, 16, 0);
+    mark_pages(2 * PAGE_SIZE, 4, PAGE_FREE);
+    expect_bitmap(0x0f, 0xf0);
+    mark_pages(2 * PAGE_SIZE, 4, PAGE_FREE);
+    expect_bitmap(0x0f, 0xf0);
+    mark_pages(7 * PAGE_SIZE, 1, PAGE_FREE);
+    expect_bitmap(0x0f, 0x30);
+    mark_pages(0, 8, PAGE_FREE);
     expect_bitmap(0, 0);
 }
 
 static void test_zero_count(void)
 {
     setup_map(2, 0x5a);
-    mark_pages(0, 0, 1);
-    mark_pages(16 * PAGE_SIZE, 0, 0);
+    mark_pages(0, 0, PAGE_USED);
+    mark_pages(8 * PAGE_SIZE, 0, PAGE_FREE);
     expect_bitmap(0x5a, 0x5a);
 }
 
@@ -89,48 +89,51 @@ static void test_allocate(void)
 {
     assert(allocate_page(1) == NULL);
 
-    setup_map(1, 0);
+    setup_map(2, 0);
     physical_pages_map->total_pages = 8;
 
     assert(allocate_page(0) == NULL);
     assert(physical_pages_map->bitmap[0] == 0x00);
 
     assert((uintptr_t)allocate_page(1) == PAGE_SIZE);
-    assert(physical_pages_map->bitmap[0] == 0x02);
+    assert(physical_pages_map->bitmap[0] == 0x04);
 
     assert((uintptr_t)allocate_page(2) == 2 * PAGE_SIZE);
-    assert(physical_pages_map->bitmap[0] == 0x0e);
+    assert(physical_pages_map->bitmap[0] == 0x54);
 
     assert((uintptr_t)allocate_page(4) == 4 * PAGE_SIZE);
-    assert(physical_pages_map->bitmap[0] == 0xfe);
+    assert(physical_pages_map->bitmap[0] == 0x54);
+    assert(physical_pages_map->bitmap[1] == 0x55);
     assert(allocate_page(2) == NULL);
     assert(allocate_page(1) == NULL);
 }
 
 static void test_allocate_fragmented(void)
 {
-    setup_map(1, 0xff);
+    setup_map(2, 0xff);
     physical_pages_map->total_pages = 8;
-    mark_pages(PAGE_SIZE, 1, 0);
-    mark_pages(3 * PAGE_SIZE, 1, 0);
-    mark_pages(5 * PAGE_SIZE, 1, 0);
+    mark_pages(PAGE_SIZE, 1, PAGE_FREE);
+    mark_pages(3 * PAGE_SIZE, 1, PAGE_FREE);
+    mark_pages(5 * PAGE_SIZE, 1, PAGE_FREE);
 
     assert(allocate_page(2) == NULL);
-    assert(physical_pages_map->bitmap[0] == 0xd5);
+    assert(physical_pages_map->bitmap[0] == 0x33);
+    assert(physical_pages_map->bitmap[1] == 0xf3);
 }
 
 static void test_allocate_bounds(void)
 {
-    setup_map(1, 0xff);
+    setup_map(2, 0xff);
     physical_pages_map->total_pages = 8;
-    mark_pages(6 * PAGE_SIZE, 2, 0);
+    mark_pages(6 * PAGE_SIZE, 2, PAGE_FREE);
 
     assert((uintptr_t)allocate_page(2) == 6 * PAGE_SIZE);
     assert(physical_pages_map->bitmap[0] == 0xff);
+    assert(physical_pages_map->bitmap[1] == 0x5f);
 
-    mark_pages(2 * PAGE_SIZE, 1, 0);
+    mark_pages(2 * PAGE_SIZE, 1, PAGE_FREE);
     assert(allocate_page(UINT64_MAX) == NULL);
-    assert(physical_pages_map->bitmap[0] == 0xfb);
+    assert(physical_pages_map->bitmap[0] == 0xcf);
 }
 
 static void test_allocate_invalid_map(void)
@@ -146,43 +149,47 @@ static void test_allocate_at(void)
 {
     assert(allocate_page_at(PAGE_SIZE, 1) == NULL);
 
-    setup_map(2, 0xff);
+    setup_map(4, 0xff);
     physical_pages_map->total_pages = 16;
-    mark_pages(PAGE_SIZE, 15, 0);
+    mark_pages(PAGE_SIZE, 15, PAGE_FREE);
 
     assert(allocate_page_at(PAGE_SIZE, 0) == NULL);
     assert(allocate_page_at(0, 1) == NULL);
     assert(allocate_page_at(PAGE_SIZE + 1, 1) == NULL);
-    assert(physical_pages_map->bitmap[0] == 0x01);
+    assert(physical_pages_map->bitmap[0] == 0x03);
     assert((uintptr_t)allocate_page_at(PAGE_SIZE, 2) == PAGE_SIZE);
-    expect_bitmap(0x07, 0x00);
+    assert(physical_pages_map->bitmap[0] == 0x17);
+    assert(physical_pages_map->bitmap[1] == 0x00);
 
     assert(allocate_page_at(PAGE_SIZE, 1) == NULL);
     assert((uintptr_t)allocate_page_at(14 * PAGE_SIZE, 2) == 14 * PAGE_SIZE);
-    expect_bitmap(0x07, 0xc0);
+    assert(physical_pages_map->bitmap[3] == 0x50);
 
     assert(allocate_page_at(15 * PAGE_SIZE, 2) == NULL);
     assert(allocate_page_at(UINT64_MAX - (PAGE_SIZE - 1), 2) == NULL);
-    expect_bitmap(0x07, 0xc0);
+    assert(physical_pages_map->bitmap[3] == 0x50);
 }
 
 static void test_bounds(void)
 {
     setup_map(2, 0x5a);
-    mark_pages(16 * PAGE_SIZE, 1, 1);
+    mark_pages(8 * PAGE_SIZE, 1, PAGE_USED);
     expect_bitmap(0x5a, 0x5a);
-    mark_pages(15 * PAGE_SIZE, 2, 0);
+    mark_pages(7 * PAGE_SIZE, 2, PAGE_FREE);
     expect_bitmap(0x5a, 0x5a);
-    mark_pages(24 * PAGE_SIZE, 1, 1);
+    mark_pages(12 * PAGE_SIZE, 1, PAGE_USED);
     expect_bitmap(0x5a, 0x5a);
-    mark_pages(PAGE_SIZE, UINT64_MAX, 0);
+    mark_pages(PAGE_SIZE + 1, 1, PAGE_USED);
+    mark_pages(PAGE_SIZE, 1, (page_status)-1);
     expect_bitmap(0x5a, 0x5a);
-    mark_pages(UINT64_MAX - (PAGE_SIZE - 1), 1, 0);
+    mark_pages(PAGE_SIZE, UINT64_MAX, PAGE_FREE);
+    expect_bitmap(0x5a, 0x5a);
+    mark_pages(UINT64_MAX - (PAGE_SIZE - 1), 1, PAGE_FREE);
     expect_bitmap(0x5a, 0x5a);
     assert(used != 0);
 
     physical_pages_map->mapsize = 0;
-    mark_pages(0, 1, 1);
+    mark_pages(0, 1, PAGE_USED);
     assert(physical_pages_map->bitmap[0] == 0x5a);
     physical_pages_map->mapsize = 2;
 }

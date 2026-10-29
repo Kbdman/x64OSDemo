@@ -1,27 +1,37 @@
 #include <physical_pages.h>
 #include <boot_info.h>
 #include <common.h>
+#define BIT_FOR_ONEPAGE 2
+#define PAGES_PER_BYTE (8 / BIT_FOR_ONEPAGE)
+#define BIT_MASK ((1 << BIT_FOR_ONEPAGE) - 1)
+
 physical_pages_map_t *physical_pages_map = (physical_pages_map_t *)-1;
 
 static int physical_pages_map_is_valid(void)
 {
     if (physical_pages_map == (physical_pages_map_t *)-1)
         return 0;
-    uint64_t required_bytes = physical_pages_map->total_pages / 8;
-    if (physical_pages_map->total_pages % 8 != 0)
+    uint64_t required_bytes =
+        physical_pages_map->total_pages / PAGES_PER_BYTE;
+
+    if (physical_pages_map->total_pages % PAGES_PER_BYTE != 0)
         required_bytes++;
     return physical_pages_map->mapsize >= required_bytes;
 }
 
-void mark_pages(uint64_t start, uint64_t count, int used)
+void mark_pages(uint64_t start, uint64_t count, page_status status)
 {
-    if (physical_pages_map == (physical_pages_map_t *)-1)
+    if (!physical_pages_map_is_valid())
+        return;
+    if (status >= PAGE_UNDEFINED || status < PAGE_FREE)
         return;
     if (count == 0)
         return;
+    if (start % PAGE_SIZE != 0)
+        return;
     uint64_t start_page = start / PAGE_SIZE;
-    if (count - 1 > UINT64_MAX - start_page ||
-        (start_page + count - 1) / 8 >= physical_pages_map->mapsize)
+    if (start_page >= physical_pages_map->total_pages ||
+        count > physical_pages_map->total_pages - start_page)
     {
         printf("mark_pages: range exceeds physical pages bitmap\n");
         return;
@@ -29,12 +39,11 @@ void mark_pages(uint64_t start, uint64_t count, int used)
     for (uint64_t i = 0; i < count; i++)
     {
         uint64_t page = start_page + i;
-        uint64_t byte_index = page / 8;
-        uint8_t bit_index = page % 8;
-        if (used)
-            physical_pages_map->bitmap[byte_index] |= (1 << bit_index);
-        else
-            physical_pages_map->bitmap[byte_index] &= ~(1 << bit_index);
+        uint64_t byte_index = page / PAGES_PER_BYTE;
+        uint8_t bit_index = (page % PAGES_PER_BYTE) * BIT_FOR_ONEPAGE;
+        uint8_t *byte = &physical_pages_map->bitmap[byte_index];
+        *byte &= ~(BIT_MASK << bit_index);
+        *byte |= (status << bit_index);
     }
 }
 void *allocate_page(uint64_t count)
@@ -44,7 +53,9 @@ void *allocate_page(uint64_t count)
         return NULL;
     for (uint64_t i = 1; i < physical_pages_map->total_pages; i++)
     {
-        if ((physical_pages_map->bitmap[i / 8] & (1 << (i % 8))) == 0)
+        uint64_t byte_index = i / PAGES_PER_BYTE;
+        uint8_t bit_index = (i % PAGES_PER_BYTE) * BIT_FOR_ONEPAGE;
+        if ((physical_pages_map->bitmap[byte_index] & (BIT_MASK << bit_index)) == 0)
         {
             uint64_t start_page = i;
             if (count > physical_pages_map->total_pages - start_page)
@@ -53,7 +64,9 @@ void *allocate_page(uint64_t count)
             for (uint64_t offset = 0; offset < count; offset++)
             {
                 uint64_t j = start_page + offset;
-                if ((physical_pages_map->bitmap[j / 8] & (1 << (j % 8))) != 0)
+                uint64_t byte_index_j = j / PAGES_PER_BYTE;
+                uint8_t bit_index_j = (j % PAGES_PER_BYTE) * BIT_FOR_ONEPAGE;
+                if ((physical_pages_map->bitmap[byte_index_j] & (BIT_MASK << bit_index_j)) != 0)
                 {
                     all_free = 0;
                     i = j; // skip to the next unchecked page after the used one
@@ -62,7 +75,7 @@ void *allocate_page(uint64_t count)
             }
             if (all_free)
             {
-                mark_pages(start_page * PAGE_SIZE, count, 1);
+                mark_pages(start_page * PAGE_SIZE, count, PAGE_USED);
                 return (void *)(start_page * PAGE_SIZE);
             }
         }
@@ -82,7 +95,9 @@ void *allocate_page_at(uint64_t start, uint64_t count)
     for (uint64_t offset = 0; offset < count; offset++)
     {
         uint64_t i = start_page + offset;
-        if ((physical_pages_map->bitmap[i / 8] & (1 << (i % 8))) != 0)
+        uint64_t byte_index_i = i / PAGES_PER_BYTE;
+        uint8_t bit_index_i = (i % PAGES_PER_BYTE) * BIT_FOR_ONEPAGE;
+        if ((physical_pages_map->bitmap[byte_index_i] & (BIT_MASK << bit_index_i)) != 0)
         {
             all_free = 0;
             break;
@@ -90,7 +105,7 @@ void *allocate_page_at(uint64_t start, uint64_t count)
     }
     if (all_free)
     {
-        mark_pages(start_page * PAGE_SIZE, count, 1);
+        mark_pages(start_page * PAGE_SIZE, count, PAGE_USED);
         return (void *)(start_page * PAGE_SIZE);
     }
     return NULL;
@@ -145,7 +160,7 @@ void init_physical_pages_map(boot_info_t *bootinfo)
     }
     printf("Total free pages: %d, size: %d MB\n", free_pages, free_pages * 4096 / 1024 / 1024);
     uint64_t total_pages = max_physical_address / PAGE_SIZE;
-    uint64_t bitmap_bytes = upround(total_pages, 8) / 8;
+    uint64_t bitmap_bytes = upround(total_pages, PAGES_PER_BYTE) / PAGES_PER_BYTE;
     uint64_t map_bytes = sizeof(PAGE_NUMBER_TYPE) * 2 + bitmap_bytes;
     uint64_t needed_pages = upround(map_bytes, PAGE_SIZE) / PAGE_SIZE;
     printf("Max physical address: %016p , total page number: %d, need %d pages for bitmap\n", (void *)max_physical_address, total_pages, needed_pages);
@@ -168,7 +183,13 @@ void init_physical_pages_map(boot_info_t *bootinfo)
             break;
         }
     }
-    memset(physical_pages_map->bitmap, 0xff, bitmap_bytes);
+    if (physical_pages_map == (physical_pages_map_t *)-1)
+    {
+        printf("Failed to find suitable memory for bitmap\n");
+        return;
+    }
+    // Initialize the bitmap with 0xaa pattern to mark all pages as reserved initially
+    memset(physical_pages_map->bitmap, 0xaa, bitmap_bytes);
     for (uint64_t i = 0; i < descriptor_count; i++)
     {
         EFI_MEMORY_DESCRIPTOR *desc =
@@ -179,10 +200,11 @@ void init_physical_pages_map(boot_info_t *bootinfo)
         if (desc->Type == EfiConventionalMemory || desc->Type == EfiBootServicesCode || desc->Type == EfiBootServicesData)
         {
             if (desc->PhysicalStart != (uint64_t)physical_pages_map)
-                mark_pages(desc->PhysicalStart, desc->NumberOfPages, 0);
+                mark_pages(desc->PhysicalStart, desc->NumberOfPages, PAGE_FREE);
             else
             {
-                mark_pages(desc->PhysicalStart + needed_pages * PAGE_SIZE, desc->NumberOfPages - needed_pages, 0);
+                mark_pages(desc->PhysicalStart, needed_pages, PAGE_USED);
+                mark_pages(desc->PhysicalStart + needed_pages * PAGE_SIZE, desc->NumberOfPages - needed_pages, PAGE_FREE);
             }
         }
     }
